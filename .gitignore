@@ -1,0 +1,16 @@
+__pycache__
+.jupyter
+*.DS_Store
+*.root
+*.pkl
+*.png
+.pytest_cache
+.vscode
+*~
+*.log
+*.npy
+*.pt
+*.img
+*.parquet
+*.json
+*.ubj
