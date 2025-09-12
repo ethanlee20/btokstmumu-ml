@@ -99,7 +99,7 @@ class Raw_Signal_Trial_Ranges:
 class Numbers_of_Signal_Events_per_Set:
     
     tuple_ = (
-        70_000, 
-        24_000, 
-        6_000,
+        8_000, 
+        16_000, 
+        32_000,
     )

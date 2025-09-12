@@ -21,11 +21,13 @@ from .results_table import Results_Table
 
 
 def to_dict_over_num_signal_events_per_set(x):
+
     def to_dict(x):
         return {
             num_events_per_set : x
             for num_events_per_set in Numbers_of_Signal_Events_per_Set().tuple_
         }
+    
     if type(x) is int:
         x = to_dict(x)
     if type(x) is not dict: 
