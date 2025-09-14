@@ -161,104 +161,11 @@ class Deep_Sets:
         bkg_fraction=None,
         bkg_charge_fraction=None
     ):  
-        
-        self._initialize_settings(
-            level=level,
-            num_events_per_set=num_events_per_set,
-            num_sets_per_label=num_sets_per_label,
-            num_sets_per_label_sensitivity=num_sets_per_label_sensitivity,
-            q_squared_veto=q_squared_veto,
-            std_scale=std_scale,
-            shuffle=shuffle,
-            uniform_label_counts=uniform_label_counts,
-            loss_fn=loss_fn,
-            learning_rate=learning_rate,
-            learning_rate_scheduler_reduction_factor=learning_rate_scheduler_reduction_factor,
-            size_of_training_batch=size_of_training_batch,
-            size_of_evaluation_batch=size_of_evaluation_batch,
-            number_of_epochs=number_of_epochs,
-            number_of_epochs_between_checkpoints=number_of_epochs_between_checkpoints,
-            bkg_fraction=bkg_fraction,
-            bkg_charge_fraction=bkg_charge_fraction
-        )
 
         self.model = Model(self.model_settings)
         self.results_table = results_table
         self.device = device
 
-    def train_model(self, remake_datasets):
-
-        training_dataset = Unbinned_Sets_Dataset(self.training_dataset_settings)
-        evaluation_dataset = Unbinned_Sets_Dataset(self.evaluation_dataset_settings)
-
-        datasets = (training_dataset, evaluation_dataset)
-
-        if remake_datasets:
-            for dataset in datasets:
-                dataset.make_and_save()
-
-        for dataset in datasets:
-            dataset.load()
-
-        train_model(
-            model=self.model, 
-            training_dataset=training_dataset, 
-            evaluation_dataset=evaluation_dataset, 
-            device=self.device
-        )
-
-        for dataset in datasets:
-            dataset.unload()
-        
-    def evaluate_model(self, remake_datasets, epoch="final"):
-        
-        evaluation_dataset = Unbinned_Sets_Dataset(self.evaluation_dataset_settings)
-        sensitivity_evaluation_dataset = Unbinned_Sets_Dataset(self.sensitivity_evaluation_dataset_settings)
-
-        datasets = (evaluation_dataset, sensitivity_evaluation_dataset)
-
-        if remake_datasets:
-            for dataset in datasets:
-                dataset.make_and_save()
-        
-        for dataset in datasets:
-            dataset.load()
-
-        results = evaluate_model(
-            model=self.model,
-            evaluation_dataset=evaluation_dataset, 
-            sensitivity_evaluation_dataset=sensitivity_evaluation_dataset,
-            results_table=self.results_table,
-            device=self.device,
-            epoch=epoch
-        )
-
-        for dataset in datasets:
-            dataset.unload()
-
-        return results
-
-    def _initialize_settings(
-        self,
-        level,
-        num_events_per_set,
-        num_sets_per_label,
-        num_sets_per_label_sensitivity,
-        q_squared_veto,
-        std_scale,
-        shuffle,
-        uniform_label_counts,
-        loss_fn,
-        learning_rate,
-        learning_rate_scheduler_reduction_factor,
-        size_of_training_batch,
-        size_of_evaluation_batch,
-        number_of_epochs,
-        number_of_epochs_between_checkpoints,
-        bkg_fraction=None,
-        bkg_charge_fraction=None
-    ):
-        
         self.training_dataset_settings = Unbinned_Sets_Dataset_Settings(
             level=level,
             split=Names_of_Splits().train,
@@ -325,6 +232,60 @@ class Deep_Sets:
             number_of_epochs=number_of_epochs,
             number_of_epochs_between_checkpoints=number_of_epochs_between_checkpoints
         )
+
+    def train_model(self, remake_datasets):
+
+        training_dataset = Unbinned_Sets_Dataset(self.training_dataset_settings)
+        evaluation_dataset = Unbinned_Sets_Dataset(self.evaluation_dataset_settings)
+
+        datasets = (training_dataset, evaluation_dataset)
+
+        if remake_datasets:
+            for dataset in datasets:
+                dataset.make_and_save()
+
+        for dataset in datasets:
+            dataset.load()
+
+        train_model(
+            model=self.model, 
+            training_dataset=training_dataset, 
+            evaluation_dataset=evaluation_dataset, 
+            device=self.device
+        )
+
+        for dataset in datasets:
+            dataset.unload()
+        
+    def evaluate_model(self, remake_datasets, epoch="final"):
+        
+        evaluation_dataset = Unbinned_Sets_Dataset(self.evaluation_dataset_settings)
+        sensitivity_evaluation_dataset = Unbinned_Sets_Dataset(self.sensitivity_evaluation_dataset_settings)
+
+        datasets = (evaluation_dataset, sensitivity_evaluation_dataset)
+
+        if remake_datasets:
+            for dataset in datasets:
+                dataset.make_and_save()
+        
+        for dataset in datasets:
+            dataset.load()
+
+        results = evaluate_model(
+            model=self.model,
+            evaluation_dataset=evaluation_dataset, 
+            sensitivity_evaluation_dataset=sensitivity_evaluation_dataset,
+            results_table=self.results_table,
+            device=self.device,
+            epoch=epoch
+        )
+
+        for dataset in datasets:
+            dataset.unload()
+
+        return results
+        
+ 
 
 
 class CNN:

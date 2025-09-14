@@ -1,7 +1,7 @@
 
 import torch
 
-from .make_and_save.make_and_save import (
+from .make_and_save import (
     make_and_save_unbinned_sets_dataset,
     make_and_save_binned_sets_dataset,
     make_and_save_images_dataset,
