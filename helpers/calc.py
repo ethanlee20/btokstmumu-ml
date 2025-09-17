@@ -1,20 +1,173 @@
 
-"""
-Physics
-"""
-
 import numpy
 import pandas
 
-from ..datasets.constants import Names_of_Variables
-from .dataframe_math import (
-    vector_magnitude,
-    square_matrix_transform,
-    dot_product,
-    cosine_angle,
-    cross_product_3d,
-    unit_normal
-)
+
+def square_matrix_transform(matrix_dataframe, vector_dataframe):
+
+    """
+    Multiply a dataframe of vectors 
+    by a dataframe of square matrices.
+    Return a dataframe.
+
+    Only works for square matrices.
+    """
+
+    if not (
+        numpy.sqrt(matrix_dataframe.shape[1]) 
+        == vector_dataframe.shape[1]
+    ):
+        raise ValueError("Matrix must be square.")
+
+    vector_length = vector_dataframe.shape[1]
+
+    transformed_vector_dataframe = pandas.DataFrame(
+        data=numpy.zeros(shape=vector_dataframe.shape),
+        index=vector_dataframe.index,
+        columns=vector_dataframe.columns,
+        dtype="float64",
+    )
+
+    for i in range(vector_length):
+        for j in range(vector_length):
+            transformed_vector_dataframe.iloc[:, i] += (
+                matrix_dataframe.iloc[:, vector_length * i + j]
+                * vector_dataframe.iloc[:, j]
+            )
+
+    return transformed_vector_dataframe
+
+
+def dot_product(vector_dataframe_1, vector_dataframe_2):
+
+    """
+    Compute the dot products of two vector dataframes.
+    """
+
+    if not (vector_dataframe_1.shape[1] == vector_dataframe_2.shape[1]):
+        raise ValueError("Vector dimensions do not match.")
+    
+    vector_length = vector_dataframe_1.shape[1]
+
+    result_series = pandas.Series(
+        data=numpy.zeros(len(vector_dataframe_1)),
+        index=vector_dataframe_1.index,
+        dtype="float64",
+    )
+
+    for dimension in range(vector_length):
+        result_series += (
+            vector_dataframe_1.iloc[:, dimension] 
+            * vector_dataframe_2.iloc[:, dimension]
+        )
+
+    return result_series
+
+
+def vector_magnitude(vector_dataframe):
+    
+    """
+    Compute the magnitude of each vector in a vector dataframe.
+    Return a series.
+    """
+
+    result_series = numpy.sqrt(dot_product(vector_dataframe, vector_dataframe))
+    
+    return result_series
+
+
+def cosine_angle(vector_dataframe_1, vector_dataframe_2):
+    
+    """
+    Find the cosine of the angle between vectors in vector dataframes.
+    Return a series.
+    """
+
+    result_series = (
+        dot_product(vector_dataframe_1, vector_dataframe_2) 
+        / (
+            vector_magnitude(vector_dataframe_1)
+            * vector_magnitude(vector_dataframe_2)
+        )
+    )
+
+    return result_series
+
+
+def cross_product_3d(three_vector_dataframe_1, three_vector_dataframe_2):
+
+    """
+    Find the cross product of 3-dimensional vectors 
+    from two vector dataframes.
+    Return a vector dataframe.
+    """
+
+    assert (
+        three_vector_dataframe_1.shape[1] 
+        == three_vector_dataframe_2.shape[1] 
+        == 3
+    )
+    assert (
+        three_vector_dataframe_1.shape[0] 
+        == three_vector_dataframe_2.shape[0]
+    )
+    assert (
+        three_vector_dataframe_1.index.equals(
+            three_vector_dataframe_2.index
+        )
+    )
+
+    three_vector_dataframe_1 = three_vector_dataframe_1.copy()
+    three_vector_dataframe_2 = three_vector_dataframe_2.copy()
+
+    three_vector_dataframe_1.columns = ["x", "y", "z"]
+    three_vector_dataframe_2.columns = ["x", "y", "z"]
+
+    cross_product_dataframe = pandas.DataFrame(
+        data=numpy.zeros(
+            shape=three_vector_dataframe_1.shape
+        ),
+        index=three_vector_dataframe_1.index,
+        columns=three_vector_dataframe_1.columns,
+        dtype="float64"
+    )
+
+    cross_product_dataframe["x"] = (
+        three_vector_dataframe_1["y"] * three_vector_dataframe_2["z"]
+        - three_vector_dataframe_1["z"] * three_vector_dataframe_2["y"]
+    )
+    cross_product_dataframe["y"] = (
+        three_vector_dataframe_1["z"] * three_vector_dataframe_2["x"]
+        - three_vector_dataframe_1["x"] * three_vector_dataframe_2["z"]
+    )
+    cross_product_dataframe["z"] = (
+        three_vector_dataframe_1["x"] * three_vector_dataframe_2["y"]
+        - three_vector_dataframe_1["y"] * three_vector_dataframe_2["x"]
+    )
+
+    return cross_product_dataframe
+
+
+def unit_normal(three_vector_dataframe_1, three_vector_dataframe_2):
+    
+    """
+    For planes specified by two three-vector dataframes,
+    calculate the unit normal vectors.
+    Return a vector dataframe.
+    """
+
+    normal_vector_dataframe = cross_product_3d(
+        three_vector_dataframe_1, 
+        three_vector_dataframe_2
+    )
+    
+    unit_normal_vector_dataframe = normal_vector_dataframe.divide(
+        vector_magnitude(normal_vector_dataframe), 
+        axis="index"
+    )
+
+    return unit_normal_vector_dataframe
+
 
 
 def convert_to_four_momentum_dataframe(dataframe_with_four_columns):
@@ -746,3 +899,258 @@ def calculate_B_to_K_star_mu_mu_variables(dataframe):
     )
 
     return dataframe
+
+
+def calculate_resolution(detector_level_dataframe, name_of_variable):
+
+    """
+    Calculate the resolution.
+
+    The resolution of a variable is defined as the
+    reconstructed value minus the MC truth value.
+
+    If the variable is chi, periodicity is accounted for.
+    """
+
+    def apply_periodicity(resolution):
+
+        resolution = resolution.where(resolution < numpy.pi, resolution - 2 * numpy.pi)
+        resolution = resolution.where(resolution > -numpy.pi, resolution + 2 * numpy.pi)
+        return resolution
+    
+    measured = detector_level_dataframe[name_of_variable]
+    generated = detector_level_dataframe[name_of_variable+'_mc']
+    resolution = measured - generated
+
+    if name_of_variable == Names_of_Variables().chi:
+
+        resolution = apply_periodicity(resolution)
+
+    return resolution
+
+
+def calculate_efficiency(generator_level_series, detector_level_series, num_bins, bounds):
+    
+    """
+    Calculate the efficiency per bin.
+
+    The efficiency of bin i is defined as the number of
+    detector entries in i divided by the number of generator
+    entries in i.
+
+    The error for bin i is calculated as the squareroot of the
+    number of detector entries in i divided by the number of
+    generator entries in i.
+    """
+
+    def make_bins(bounds, num_bins):
+
+        assert len(bounds) == 2
+        bin_edges, bin_width = numpy.linspace(start=bounds[0], stop=bounds[1], num=num_bins+1, retstep=True)
+        bin_middles = numpy.linspace(start=bounds[0]+bin_width/2, stop=bounds[1]-bin_width/2, num=num_bins)
+        return bin_edges, bin_middles
+
+    bin_edges, bin_middles = make_bins(bounds, num_bins)
+
+    generator_level_histogram, _ = numpy.histogram(generator_level_series, bins=bin_edges)
+    detector_level_histogram, _ = numpy.histogram(detector_level_series, bins=bin_edges)
+
+    print("num events generator: ", generator_level_histogram.sum())
+    print("num events detector: ", detector_level_histogram.sum())
+
+    efficiencies = detector_level_histogram / generator_level_histogram
+    errors = numpy.sqrt(detector_level_histogram) / generator_level_histogram
+
+    return bin_middles, efficiencies, errors
+
+
+def bin_in_var(
+    dataframe,
+    name_of_binning_variable, 
+    start, 
+    stop, 
+    num_bins,
+    return_bin_edges=False,
+):
+    
+    bin_edges = numpy.linspace(start=start, stop=stop, num=num_bins+1)
+    bins = pandas.cut(dataframe[name_of_binning_variable], bin_edges, include_lowest=True) # the interval each event falls into
+    groupby_binned = dataframe.groupby(bins, observed=False)
+
+    if return_bin_edges:
+        return groupby_binned, bin_edges
+    return groupby_binned
+
+
+def calc_bin_middles(start, stop, num_bins):
+
+    bin_edges, step = numpy.linspace(
+        start=start,
+        stop=stop,
+        num=num_bins+1,
+        retstep=True,
+    )
+    bin_middles = bin_edges[:-1] + step/2 
+    return bin_middles
+
+
+def calc_afb_of_q_sq(dataframe, num_bins, start, stop):
+
+    """
+    Calcuate Afb as a function of q squared.
+    Afb is the forward-backward asymmetry.
+    """
+
+    def calc_num_forward(df):
+
+        return df["costheta_mu"][(df["costheta_mu"] > 0) & (df["costheta_mu"] < 1)].count()
+    
+    def calc_num_backward(df):
+
+        return df["costheta_mu"][(df["costheta_mu"] > -1) & (df["costheta_mu"] < 0)].count()
+
+    def calc_afb(df):
+
+        f = calc_num_forward(df)
+        b = calc_num_backward(df)
+        return (f - b) / (f + b)
+
+    def calc_afb_err(df):
+
+        f = calc_num_forward(df)
+        b = calc_num_backward(df)
+        f_stdev = numpy.sqrt(f)
+        b_stdev = numpy.sqrt(b)
+        return 2*f*b / (f+b)**2 * numpy.sqrt((f_stdev/f)**2 + (b_stdev/b)**2) # this is stdev?
+
+    groupby_binned = bin_in_var(
+        dataframe, 
+        "q_squared", 
+        start,
+        stop,
+        num_bins
+    )
+    
+    afbs = groupby_binned.apply(calc_afb)
+    errs = groupby_binned.apply(calc_afb_err)
+    bin_middles = calc_bin_middles(start, stop, num_bins)
+
+    return bin_middles, afbs, errs
+
+
+def calc_afb_of_q_sq_over_dc9(dataframe, num_bins, start, stop):
+
+    dc9_values = []
+    bin_mids_over_dc9 = []
+    afbs_over_dc9 = []
+    afb_errs_over_dc9 = []
+
+    for dc9, df in (dataframe.groupby("dc9")):
+
+        dc9_values.append(dc9)
+        bin_mids, afbs, afb_errs = calc_afb_of_q_sq(df, num_bins, start, stop)
+        bin_mids_over_dc9.append(bin_mids)
+        afbs_over_dc9.append(afbs)
+        afb_errs_over_dc9.append(afb_errs)
+
+    return dc9_values, bin_mids_over_dc9, afbs_over_dc9, afb_errs_over_dc9
+
+
+def calc_s5_of_q_sq(dataframe, num_bins, start, stop):
+    
+    def calc_num_forward(df):
+
+        cos_theta_k = df["costheta_K"]
+        chi = df["chi"]
+        
+        return df[
+            (((cos_theta_k > 0) & (cos_theta_k < 1)) & ((chi > 0) & (chi < pi/2)))
+            | (((cos_theta_k > 0) & (cos_theta_k < 1)) & ((chi > 3*pi/2) & (chi < 2*pi)))
+            | (((cos_theta_k > -1) & (cos_theta_k < 0)) & ((chi > pi/2) & (chi < 3*pi/2)))
+        ].count().min()
+
+    def calc_num_backward(df):
+
+        cos_theta_k = df["costheta_K"]
+        chi = df["chi"]
+        
+        return df[
+            (((cos_theta_k > 0) & (cos_theta_k < 1)) & ((chi > pi/2) & (chi < 3*pi/2)))
+            | (((cos_theta_k > -1) & (cos_theta_k < 0)) & ((chi > 0) & (chi < pi/2)))
+            | (((cos_theta_k > -1) & (cos_theta_k < 0)) & ((chi > 3*pi/2) & (chi < 2*pi)))
+        ].count().min()
+
+    def calc_s5(df):
+
+        f = calc_num_forward(df)
+        b = calc_num_backward(df)
+
+        try: 
+
+            s5 = 4/3 * (f - b) / (f + b)
+
+        except ZeroDivisionError:
+
+            print("S5 calculation: division by 0, returning nan")
+            s5 = numpy.nan
+
+        return s5
+
+    def calc_s5_err(df):
+
+        """
+        Calculate the error of S_5.
+
+        The error is calculated by assuming the forward and backward
+        regions have uncorrelated Poisson errors and propagating
+        the errors.
+        """
+
+        f = calc_num_forward(df)
+        b = calc_num_backward(df)
+
+        f_stdev = numpy.sqrt(f)
+        b_stdev = numpy.sqrt(b)
+
+        try: 
+
+            err =  4/3 * 2*f*b / (f+b)**2 * numpy.sqrt((f_stdev/f)**2 + (b_stdev/b)**2) # this is stdev?
+
+        except ZeroDivisionError:
+
+            print("S5 error calculation: division by 0, returning nan")
+            err = nan
+        
+        return err
+
+    groupby_binned = bin_in_var(
+        dataframe, 
+        "q_squared", 
+        start,
+        stop,
+        num_bins,     
+    )
+    
+    s5s = groupby_binned.apply(calc_s5)
+    errs = groupby_binned.apply(calc_s5_err)
+    bin_middles = calc_bin_middles(start, stop, num_bins)
+
+    return bin_middles, s5s, errs
+
+
+def calc_s5_of_q_sq_over_dc9(dataframe, num_bins, start, stop):
+
+    dc9_values = []
+    bin_mids_over_dc9 = []
+    s5s_over_dc9 = []
+    s5_errs_over_dc9 = []
+
+    for dc9, df in (dataframe.groupby("dc9")):
+
+        dc9_values.append(dc9)
+        bin_middles, s5s, s5_errs = calc_s5_of_q_sq(df, num_bins, start, stop)
+        bin_mids_over_dc9.append(bin_middles)
+        s5s_over_dc9.append(s5s)
+        s5_errs_over_dc9.append(s5_errs)
+
+    return dc9_values, bin_mids_over_dc9, s5s_over_dc9, s5_errs_over_dc9
