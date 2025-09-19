@@ -127,6 +127,8 @@ def train(
         
         path.mkdir()
 
+        return path
+
     def save_model(model, filename, save_dir):
 
         torch.save(model.state_dict(), Path(save_dir).joinpath(filename)) 
@@ -145,9 +147,7 @@ def train(
         plt.savefig(Path(save_dir).joinpath("loss.png"), bbox_inches="tight")
         plt.close()
 
-    save_dir = Path("models")
-
-    setup_model_dir(name, save_dir)
+    save_dir = setup_model_dir(name, "models")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -381,7 +381,7 @@ def open_test_result(result_name, num_signal, model_name):
 
     path = Path("results").joinpath(filename)
 
-    with open(path, 'wb') as file:
+    with open(path, 'rb') as file:
 
         result = pickle.load(file)
 
